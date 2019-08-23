@@ -25,7 +25,7 @@ SPECIAL_TOKENS = ["<bos>", "<eos>", "<speaker1>", "<speaker2>", "<pad>"]
 MODEL_INPUTS = ["input_ids", "mc_token_ids", "lm_labels", "mc_labels", "token_type_ids"]
 PADDED_INPUTS = ["input_ids", "lm_labels", "token_type_ids"]
 
-logger = logging.getLogger(__file__)
+logger = logging.getLogger()
 
 def average_distributed_scalar(scalar, args):
     """ Average a scalar over the nodes if we are in distributed training. We use this for distributed evaluation. """
@@ -127,7 +127,18 @@ def train():
     parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device (cuda or cpu)")
     parser.add_argument("--fp16", type=str, default="", help="Set to O0, O1, O2 or O3 for fp16 training (see apex documentation)")
     parser.add_argument("--local_rank", type=int, default=-1, help="Local rank for distributed training (-1: not distributed)")
-    args = parser.parse_args()
+    args = parser.parse_args([
+        '--gradient_accumulation_steps', '4',
+        '--lm_coef', '2.0',
+        '--max_history', '2',
+        '--n_epochs', '1',
+        '--num_candidates', '4',
+        '--personality_permutations', '2',
+        '--train_batch_size', '2',
+        '--valid_batch_size', '2',
+        '--fp16', 'O1',
+        '--model_checkpoint', '/ssd/siqi/CSR/GPT/pretrained/117M-reddit'
+    ])
 
     # logging is set to INFO (resp. WARN) for main (resp. auxiliary) process. logger.info => log main process only, logger.warning => log all processes
     logging.basicConfig(level=logging.INFO if args.local_rank in [-1, 0] else logging.WARN)
@@ -142,9 +153,9 @@ def train():
         torch.distributed.init_process_group(backend='nccl', init_method='env://')
 
     logger.info("Prepare tokenizer, pretrained model and optimizer - add special tokens for fine-tuning")
-    tokenizer_class = GPT2Tokenizer if "gpt2" in args.model_checkpoint else OpenAIGPTTokenizer
+    tokenizer_class = GPT2Tokenizer                # if "gpt2" in args.model_checkpoint else OpenAIGPTTokenizer
     tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint)
-    model_class = GPT2DoubleHeadsModel if "gpt2" in args.model_checkpoint else OpenAIGPTDoubleHeadsModel
+    model_class = GPT2DoubleHeadsModel             # if "gpt2" in args.model_checkpoint else OpenAIGPTDoubleHeadsModel
     model = model_class.from_pretrained(args.model_checkpoint)
     tokenizer.set_special_tokens(SPECIAL_TOKENS)
     model.set_num_special_tokens(len(SPECIAL_TOKENS))
