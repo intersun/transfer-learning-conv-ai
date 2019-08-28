@@ -56,7 +56,8 @@ def train():
         '--fp16', 'O1',
         # '--lr', '1e-5',
         # '--model_checkpoint', '/ssd/siqi/CSR/GPT/pretrained/117M-reddit',
-        '--model_checkpoint', '/datadrive/ssd/117M-reddit',
+        # '--model_checkpoint', '/datadrive/ssd/117M-reddit',
+        '--model_checkpoint', '/datadrive/ssd/117M',
         '--no_persona', 'True'
     ])
 

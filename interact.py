@@ -2,6 +2,8 @@
 # All rights reserved.
 # This source code is licensed under the BSD-style license found in the
 # LICENSE file in the root directory of this source tree.
+import os
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 import logging
 import random
 from argparse import ArgumentParser
@@ -68,8 +70,7 @@ def sample_sequence(personality, history, tokenizer, model, args, current_output
 
         logits = model(input_ids, token_type_ids=token_type_ids)
 
-        if "gpt2" == args.model:
-            logits = logits[0]
+        logits = logits[0]
         logits = logits[0, -1, :] / args.temperature
         logits = top_filtering(logits, top_k=args.top_k, top_p=args.top_p)
         probs = F.softmax(logits, dim=-1)
@@ -101,10 +102,12 @@ def run():
     parser.add_argument("--temperature", type=int, default=0.7, help="Sampling softmax temperature")
     parser.add_argument("--top_k", type=int, default=0, help="Filter top-k tokens before sampling (<=0: no filtering)")
     parser.add_argument("--top_p", type=float, default=0.9, help="Nucleus filtering (top-p) before sampling (<=0.0: no filtering)")
-    args = parser.parse_args()
+    args = parser.parse_args([
+        '--model_checkpoint', '/datadrive/ssd/117M'
+    ])
 
     logging.basicConfig(level=logging.INFO)
-    logger = logging.getLogger(__file__)
+    logger = logging.getLogger()
     logger.info(pformat(args))
 
     if args.model_checkpoint == "":
@@ -115,9 +118,9 @@ def run():
     torch.cuda.manual_seed(args.seed)
 
     logger.info("Get pretrained model and tokenizer")
-    tokenizer_class = GPT2Tokenizer if "gpt2" == args.model else OpenAIGPTTokenizer
+    tokenizer_class = GPT2Tokenizer
     tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint)
-    model_class = GPT2LMHeadModel if "gpt2" == args.model else OpenAIGPTLMHeadModel
+    model_class = GPT2LMHeadModel
     model = model_class.from_pretrained(args.model_checkpoint)
 
     model.to(args.device)
@@ -130,16 +133,17 @@ def run():
 
     history = []
     while True:
-        raw_text = input(">>> ")
-        while not raw_text:
-            print('Prompt should not be empty!')
-            raw_text = input(">>> ")
+        raw_text = "what do you like ?"   # input(">>> ")
+        if False:
+            while not raw_text:
+                print('Prompt should not be empty!')
+                raw_text = input(">>> ")
         history.append(tokenizer.encode(raw_text))
         with torch.no_grad():
             out_ids = sample_sequence(personality, history, tokenizer, model, args)
         history.append(out_ids)
         history = history[-(2*args.max_history+1):]
-        out_text = tokenizer.decode(out_ids, skip_special_tokens=True)
+        out_text = tokenizer.decode(out_ids)
         print(out_text)
 
 
