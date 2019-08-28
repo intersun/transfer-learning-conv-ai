@@ -12,8 +12,8 @@ import torch
 import torch.nn.functional as F
 
 from pytorch_pretrained_bert import OpenAIGPTLMHeadModel, OpenAIGPTTokenizer, GPT2LMHeadModel, GPT2Tokenizer
-from train import SPECIAL_TOKENS, build_input_from_segments
-from utils import get_dataset_personalities, download_pretrained_model
+from utils import get_dataset_personalities, download_pretrained_model, build_input_from_segments
+NO_PERSONA = False
 
 def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_value=-float('Inf')):
     """ Filter a distribution of logits using top-k, top-p (nucleus) and/or threshold filtering
@@ -55,12 +55,13 @@ def top_filtering(logits, top_k=0, top_p=0.0, threshold=-float('Inf'), filter_va
 
 
 def sample_sequence(personality, history, tokenizer, model, args, current_output=None):
-    special_tokens_ids = tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
+    special_tokens_ids = [50256]
     if current_output is None:
         current_output = []
 
     for i in range(args.max_length):
-        instance, sequence = build_input_from_segments(personality, history, current_output, tokenizer, with_eos=False)
+        instance, sequence = build_input_from_segments(personality, history, current_output, tokenizer, with_eos=False,
+                                                       no_persona=NO_PERSONA)
 
         input_ids = torch.tensor(instance["input_ids"], device=args.device).unsqueeze(0)
         token_type_ids = torch.tensor(instance["token_type_ids"], device=args.device).unsqueeze(0)

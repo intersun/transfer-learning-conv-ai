@@ -19,9 +19,9 @@ from projects.convai2.eval_ppl import eval_ppl, setup_args as setup_args_ppl
 from projects.convai2.build_dict import build_dict
 from pytorch_pretrained_bert import OpenAIGPTDoubleHeadsModel, OpenAIGPTLMHeadModel, OpenAIGPTTokenizer
 
-from train import build_input_from_segments, pad_dataset, SPECIAL_TOKENS
-from utils import download_pretrained_model, AttrDict
-from interact import sample_sequence
+from utils import download_pretrained_model, AttrDict, build_input_from_segments, pad_dataset
+from interact import sample_sequence, NO_PERSONA
+
 
 class TransformerAgent(Agent):
     @staticmethod
@@ -75,7 +75,7 @@ class TransformerAgent(Agent):
             self.tokenizer = shared['tokenizer']
             self.prefix2words = shared['prefix2words']
 
-        self.special_tokens_ids = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
+        # self.special_tokens_ids = self.tokenizer.convert_tokens_to_ids(SPECIAL_TOKENS)
 
         self.persona = []
         self.history = []
@@ -123,14 +123,15 @@ class TransformerAgent(Agent):
         if self.args.eval_type == "hits@1" and len(self.candidates) > 0:
             instances = defaultdict(list)
             for candidate, _ in self.candidates:
-                instance, _ = build_input_from_segments(self.persona, self.history, candidate, self.tokenizer)
+                instance, _ = build_input_from_segments(self.persona, self.history, candidate, self.tokenizer,
+                                                        no_persona=NO_PERSONA)
                 for input_name, input_array in instance.items():
                     instances[input_name].append(input_array)
 
-            inputs = pad_dataset(instances, padding=self.special_tokens_ids[-1])
+            inputs = pad_dataset(instances, padding=0)
 
             tensor_inputs = {}
-            for input_name in ["input_ids", "mc_token_ids", "token_type_ids"]:
+            for input_name in ["input_ids", "mc_token_ids"]:
                 tensor = torch.tensor(inputs[input_name], device=self.args.device)
                 tensor = tensor.view((-1, len(self.candidates)) + tensor.shape[1:])
                 tensor_inputs[input_name] = tensor
@@ -161,13 +162,13 @@ class TransformerAgent(Agent):
         """
         partial_out_ids = self.tokenizer.encode(' '.join(partial_out))
         instance, _ = build_input_from_segments(self.persona, self.history, partial_out_ids,
-                                             self.tokenizer, with_eos=False)
+                                             self.tokenizer, with_eos=False, no_persona=NO_PERSONA)
 
         input_ids = torch.tensor(instance["input_ids"], device=self.args.device).unsqueeze(0)
         token_type_ids = torch.tensor(instance["token_type_ids"], device=self.args.device).unsqueeze(0)
 
         with torch.no_grad():
-            logits = self.model_checkpoint(input_ids, token_type_ids=token_type_ids)
+            logits = self.model_checkpoint(input_ids, token_type_ids=None)
 
         probs = F.softmax(logits[0, -1], dim=0)
 
